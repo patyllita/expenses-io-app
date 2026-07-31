@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#CFEE4A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Expenses.io" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="stylesheet" href="style.css" />
+<title id="pageTitle">Expenses.io</title>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- SPLASH -->
+  <div id="splashView" class="splash-wrap">
+    <img class="splash-icon" src="icons/icon-192.png" alt="Expenses.io" />
+    <h1 id="splashTitle" class="splash-title">Expenses.io</h1>
+    <p class="splash-tagline">Track. Manage. Grow.</p>
+    <div class="spinner-ring"></div>
+    <p class="splash-loading">Loading your data...</p>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="loginView" class="login-wrap" style="display:none;">
+    <div class="card login-card">
+      <img class="brand-icon" src="icons/icon-192.png" alt="Expenses.io" />
+      <h1 id="loginTitle">Expenses.io</h1>
+      <p class="sub">Sign in to continue</p>
+      <label>Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com" />
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" placeholder="••••••••" />
+      <button class="primary" id="loginBtn">Sign in</button>
+      <div class="error-msg" id="loginError"></div>
+      <p class="hint">Users are created from the Firebase console (Authentication → Users). Ask whoever set up the app to add you.</p>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="mainView" style="display:none;">
+    <header class="topbar">
+      <div class="brandRow">
+        <img class="brandDot" src="icons/icon-192.png" alt="Expenses.io" />
+        <h1 id="headerTitle">Expenses.io</h1>
+      </div>
+      <button class="logout" id="logoutBtn">Sign out</button>
+    </header>
+
+    <main>
+      <!-- TAB: NEW -->
+      <section id="tab-nuevo" class="tabpanel">
+        <div class="pill-select" id="newTypeToggle">
+          <button data-type="expense" class="active">Expense</button>
+          <button data-type="income">Income</button>
+        </div>
+
+        <div class="card" id="expenseCard">
+          <h2>New expense</h2>
+          <form id="expenseForm">
+            <label>Date</label>
+            <input type="date" id="f_fecha" required />
+
+            <label>Vendor / Description</label>
+            <input type="text" id="f_comercio" placeholder="Ex: City Pharmacy" required />
+
+            <label>Amount (USD)</label>
+            <input type="number" id="f_monto" step="0.01" min="0" placeholder="0.00" required />
+
+            <label>Category</label>
+            <div class="pill-select" id="f_typeToggle">
+              <button type="button" data-ftype="personal" class="active">Personal</button>
+              <button type="button" data-ftype="business">Business</button>
+            </div>
+
+            <div id="personGroup">
+              <label>Person</label>
+              <select id="f_persona">
+                <option>Carlos Rojas</option>
+                <option>Patrizia Gonzalez</option>
+                <option>Merida Rojas</option>
+              </select>
+            </div>
+
+            <div id="businessTypeGroup" style="display:none;">
+              <label>Business type</label>
+              <div class="pill-select" id="f_businessTypeToggle">
+                <button type="button" data-fbtype="properties" class="active">Properties</button>
+                <button type="button" data-fbtype="soletrade">Sole Trade</button>
+              </div>
+            </div>
+
+            <div id="propertyGroup" style="display:none;">
+              <label>Property</label>
+              <select id="f_inmueble"></select>
+            </div>
+
+            <div id="soleTradeGroup" style="display:none;">
+              <label>Sole trader</label>
+              <select id="f_soletrader">
+                <option>Carlos Rojas</option>
+                <option>Patrizia Gonzalez</option>
+              </select>
+
+              <label>Business name</label>
+              <input type="text" id="f_businessname" value="Lumen Maris" readonly style="background:#F0F0EA;color:var(--muted);" />
+            </div>
+
+            <label>Subcategory</label>
+            <select id="f_subcategoria"></select>
+
+            <label>Photo or document</label>
+            <input type="file" id="f_foto" accept="image/*,application/pdf" capture="environment" />
+
+            <label>Notes</label>
+            <textarea id="f_notas" placeholder="Optional"></textarea>
+
+            <button type="submit" class="primary" id="saveExpenseBtn">Save expense</button>
+            <div class="error-msg" id="expenseError"></div>
+          </form>
+        </div>
+
+        <div class="card" id="incomeCard" style="display:none;">
+          <h2>New income</h2>
+          <form id="incomeForm">
+            <label>Date received</label>
+            <input type="date" id="i_fecha" required />
+
+            <label>Property</label>
+            <select id="i_inmueble" required></select>
+
+            <label>Tenant name</label>
+            <input type="text" id="i_inquilino" placeholder="Ex: John Smith" />
+
+            <label>Subcategory</label>
+            <select id="i_subcategoria">
+              <option>Monthly Rent</option>
+              <option>Deposit</option>
+            </select>
+
+            <label>Amount (USD)</label>
+            <input type="number" id="i_monto" step="0.01" min="0" placeholder="0.00" required />
+
+            <label>Month covered</label>
+            <input type="text" id="i_mes" placeholder="Ex: July 2026" />
+
+            <label>Payment method</label>
+            <select id="i_metodo">
+              <option>Bank transfer</option>
+              <option>Cash</option>
+              <option>Other</option>
+            </select>
+
+            <label>Receipt / proof (optional)</label>
+            <input type="file" id="i_foto" accept="image/*,application/pdf" capture="environment" />
+
+            <label>Notes</label>
+            <textarea id="i_notas" placeholder="Optional"></textarea>
+
+            <button type="submit" class="primary" id="saveIncomeBtn">Save income</button>
+            <div class="error-msg" id="incomeError"></div>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB: EXPENSES -->
+      <section id="tab-gastos" class="tabpanel" style="display:none;">
+        <div class="card">
+          <h2>Recorded expenses</h2>
+          <div class="filters">
+            <select id="filterAno">
+              <option value="">All years</option>
+            </select>
+            <select id="filterCategoria">
+              <option value="">All categories</option>
+            </select>
+          </div>
+          <div id="expenseList"><div class="spinner">Loading...</div></div>
+          <button class="secondary" id="exportCsvBtn">Export view to Excel</button>
+        </div>
+      </section>
+
+      <!-- TAB: PROPERTIES -->
+      <section id="tab-inmuebles" class="tabpanel" style="display:none;">
+        <div class="card">
+          <h2>Add / update tenant</h2>
+          <form id="tenantForm">
+            <label>Full name</label>
+            <input type="text" id="t_nombre" required />
+
+            <label>Email</label>
+            <input type="email" id="t_email" placeholder="name@example.com" />
+
+            <label>PPSN</label>
+            <input type="text" id="t_ppsn" placeholder="Ex: 1234567T" />
+
+            <label>Property</label>
+            <select id="t_inmueble" required></select>
+
+            <label>Registered with RTB</label>
+            <select id="t_rtb">
+              <option>No</option>
+              <option>Yes</option>
+            </select>
+
+            <label>Deposit (USD)</label>
+            <input type="number" id="t_deposito" step="0.01" min="0" />
+
+            <label>Monthly rent (USD)</label>
+            <input type="number" id="t_renta" step="0.01" min="0" />
+
+            <label>Paid through (month/year)</label>
+            <input type="text" id="t_pagado" placeholder="Ex: July 2026" />
+
+            <label>Currently living there?</label>
+            <select id="t_activo">
+              <option>Yes</option>
+              <option>No</option>
+            </select>
+
+            <label>Move-in date</label>
+            <input type="date" id="t_ingreso" />
+
+            <label>Passport photo</label>
+            <input type="file" id="t_pasaporte" accept="image/*,application/pdf" />
+
+            <label>Employment letter</label>
+            <input type="file" id="t_carta" accept="image/*,application/pdf" />
+
+            <label>Notes</label>
+            <textarea id="t_notas"></textarea>
+
+            <button type="submit" class="primary" id="saveTenantBtn">Save tenant</button>
+            <button type="button" class="secondary" id="cancelEditTenantBtn" style="display:none;">Cancel edit</button>
+            <div class="error-msg" id="tenantError"></div>
+          </form>
+        </div>
+        <div class="card">
+          <h2>Registered tenants</h2>
+          <div id="tenantList"><div class="spinner">Loading...</div></div>
+        </div>
+
+        <div class="card">
+          <h2>Generate tenant letter</h2>
+          <label>Tenant</label>
+          <select id="l_tenant"></select>
+
+          <label>Letter type</label>
+          <select id="l_type">
+            <option value="recommendation">Recommendation letter</option>
+            <option value="address">Proof of address letter</option>
+          </select>
+
+          <label>Tenancy start date</label>
+          <input type="date" id="l_start" />
+
+          <label>Tenancy end date (or "Present")</label>
+          <input type="text" id="l_end" placeholder="Present" />
+
+          <button type="button" class="primary" id="generateLetterBtn">Generate letter (PDF)</button>
+          <p class="hint">Opens a print-ready letter using the landlord details for that property — choose "Save as PDF" in the print dialog.</p>
+        </div>
+      </section>
+
+      <!-- TAB: REPORTS -->
+      <section id="tab-reportes" class="tabpanel" style="display:none;">
+        <div class="card">
+          <div class="pill-select" id="reportTypeToggle">
+            <button data-report="expense" class="active">Expense report</button>
+            <button data-report="income">Income report</button>
+          </div>
+          <label>Year</label>
+          <select id="reporteAno"></select>
+          <div class="stat-grid" id="reporteStats" style="margin-top:16px;"></div>
+          <button class="secondary" id="exportExcelBtn" style="margin-top:16px;">Export report to Excel (.xlsx)</button>
+        </div>
+        <div class="card dark">
+          <h2 id="reportBreakdownTitle">Total by category</h2>
+          <div id="reporteCategorias"></div>
+        </div>
+        <div class="card" id="reportSecondaryCard">
+          <h2 id="reportSecondaryTitle">Real estate business by subcategory</h2>
+          <div id="reporteSubcategorias"></div>
+        </div>
+
+        <div class="card" id="incomeListCard" style="display:none;">
+          <h2>Recorded income</h2>
+          <div id="incomeList"></div>
+        </div>
+
+        <div class="card" id="tenantStatusCard" style="display:none;">
+          <h2>Tenant status</h2>
+          <p class="hint" style="margin:0 0 10px;">Updates instantly when you edit a tenant's "Paid through" date in the Properties tab.</p>
+          <div id="tenantStatusList"></div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="nuevo" class="active"><span class="icon">➕</span>New</button>
+      <button data-tab="gastos"><span class="icon">🧾</span>Expenses</button>
+      <button data-tab="inmuebles"><span class="icon">🏘️</span>Properties</button>
+      <button data-tab="reportes"><span class="icon">📊</span>Reports</button>
+    </nav>
+  </div>
+</div>
+
+<!-- Firebase SDK (compat, no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-storage-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>
