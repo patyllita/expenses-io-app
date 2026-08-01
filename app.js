@@ -50,9 +50,9 @@ const CATEGORIES = [
   ...PROPERTY_DATA.map((p) => `Business - ${p.short}`),
   ...SOLE_TRADE_NAMES.map((n) => `Business - Sole Trade - ${n}`),
 ];
-const SUBCATS_PERSONAL = ["Medical expenses", "Bills"];
-const SUBCATS_BUSINESS = ["RTB", "Furniture", "Appliances", "Home Renovation"];
-const SUBCATS_SOLE_TRADE = ["Supplies", "Software & Tools", "Professional Fees", "Marketing", "Travel", "Other"];
+const SUBCATS_PERSONAL = ["Medical expenses", "Bills", "Subscriptions"];
+const SUBCATS_BUSINESS = ["RTB", "Furniture", "Appliances", "Home Renovation", "Subscriptions"];
+const SUBCATS_SOLE_TRADE = ["Supplies", "Software & Tools", "Professional Fees", "Marketing", "Travel", "Subscriptions", "Other"];
 
 function populateSubcategory(type) {
   const list = type === "personal" ? SUBCATS_PERSONAL : type === "soletrade" ? SUBCATS_SOLE_TRADE : SUBCATS_BUSINESS;
@@ -70,8 +70,35 @@ function populatePropertySelects() {
 
   const filterOptionsHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join("");
   $("filterCategoria").insertAdjacentHTML("beforeend", filterOptionsHTML);
+
+  if ($("s_categoria")) {
+    $("s_categoria").innerHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join("");
+  }
 }
 populatePropertySelects();
+
+// Turns a saved category string like "Personal - Carlos Rojas" or
+// "Business - Sole Trade - Carlos Rojas" back into the individual fields
+// an expense entry needs (persona / inmueble / soleTrader / businessName).
+function parseCategoria(categoria) {
+  const result = { persona: "", inmueble: "N/A", soleTrader: "", businessName: "" };
+  if (!categoria) return result;
+  if (categoria.startsWith("Personal - ")) {
+    result.persona = categoria.replace("Personal - ", "");
+  } else if (categoria.startsWith("Business - Sole Trade - ")) {
+    result.soleTrader = categoria.replace("Business - Sole Trade - ", "");
+    result.businessName = BUSINESS_NAME;
+  } else if (categoria.startsWith("Business - ")) {
+    result.inmueble = categoria.replace("Business - ", "");
+  }
+  return result;
+}
+
+// Deterministic ID so logging the same tenant's rent twice updates the same
+// recurring template instead of creating duplicates.
+function incomeSubKey(inquilino, inmueble) {
+  return `${slugify(inquilino) || "tenant"}__${slugify(inmueble) || "property"}`;
+}
 
 // ---------- New expense: Personal / Business toggle ----------
 document.querySelectorAll("#f_typeToggle button").forEach((btn) => {
@@ -284,21 +311,49 @@ $("incomeForm").addEventListener("submit", async (e) => {
     const receipt = await uploadFile($("i_foto").files[0], "income");
     const date = $("i_fecha").value;
 
+    const inmueble = $("i_inmueble").value;
+    const inquilino = $("i_inquilino").value.trim();
+    const subcategoria = $("i_subcategoria").value;
+    const monto = parseFloat($("i_monto").value) || 0;
+    const metodoPago = $("i_metodo").value;
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
     await db.collection("income").add({
       fecha: date,
       anio: date ? date.slice(0, 4) : "",
-      inmueble: $("i_inmueble").value,
-      inquilino: $("i_inquilino").value.trim(),
-      subcategoria: $("i_subcategoria").value,
-      monto: parseFloat($("i_monto").value) || 0,
+      inmueble,
+      inquilino,
+      subcategoria,
+      monto,
       mesCubierto: $("i_mes").value.trim(),
-      metodoPago: $("i_metodo").value,
+      metodoPago,
       notas: $("i_notas").value.trim(),
       fotoURL: receipt.url,
       fotoNombre: receipt.name,
+      mesGenerado: monthKey,
       creadoPor: auth.currentUser.email,
       creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
     });
+
+    // Monthly Rent repeats every month, so we save/update a recurring template
+    // keyed by tenant+property — from now on the app auto-logs it each month.
+    // Deposit is a one-time payment and is never turned into a recurring charge.
+    if (subcategoria === "Monthly Rent" && inquilino && inmueble) {
+      const subId = incomeSubKey(inquilino, inmueble);
+      await db.collection("incomeSubscriptions").doc(subId).set(
+        {
+          inquilino,
+          inmueble,
+          monto,
+          metodoPago,
+          activo: true,
+          creadoPor: auth.currentUser.email,
+          actualizadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+      );
+    }
 
     $("incomeForm").reset();
     alert("Income saved ✅");
@@ -315,6 +370,8 @@ $("incomeForm").addEventListener("submit", async (e) => {
 let allExpenses = [];
 let allIncome = [];
 let allTenants = [];
+let allSubscriptions = [];
+let allIncomeSubscriptions = [];
 
 let dataListenersAttached = false;
 
@@ -342,6 +399,229 @@ function initData() {
     renderTenants(allTenants);
     populateTenantSelect(allTenants);
   });
+
+  db.collection("subscriptions").orderBy("nombre").onSnapshot((snap) => {
+    allSubscriptions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderSubscriptions(allSubscriptions);
+    checkAndGenerateSubscriptionCharges(allSubscriptions);
+  });
+
+  db.collection("incomeSubscriptions").orderBy("inquilino").onSnapshot((snap) => {
+    allIncomeSubscriptions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    renderIncomeSubscriptions(allIncomeSubscriptions);
+    checkAndGenerateIncomeCharges(allIncomeSubscriptions);
+  });
+}
+
+function renderIncomeSubscriptions(subs) {
+  const el = $("incomeSubList");
+  if (!el) return;
+  if (subs.length === 0) {
+    el.innerHTML = '<div class="empty-state">No recurring rent yet — it appears automatically the first time you log a "Monthly Rent" income entry for a tenant.</div>';
+    return;
+  }
+  el.innerHTML = subs
+    .map(
+      (s) => `
+    <div class="expense-item">
+      <div class="meta">
+        <div class="desc">${escapeHtml(s.inquilino)}</div>
+        <div class="tags"><span>${escapeHtml(s.inmueble)}</span>${s.activo === false ? "<span>Paused</span>" : ""}</div>
+      </div>
+      <div>
+        <div class="amount">$${Number(s.monto || 0).toFixed(2)}/mo</div>
+        <button class="del" data-id="${s.id}" title="Stop auto-billing">🗑</button>
+      </div>
+    </div>`
+    )
+    .join("");
+
+  el.querySelectorAll(".del").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (confirm("Stop auto-billing this tenant's rent? Past income already logged will stay.")) {
+        await db.collection("incomeSubscriptions").doc(btn.dataset.id).delete();
+      }
+    });
+  });
+}
+
+async function checkAndGenerateIncomeCharges(subs) {
+  if (!subs || subs.length === 0) return;
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const monthLabel = now.toLocaleDateString("en-IE", { month: "long", year: "numeric" });
+  let addedCount = 0;
+
+  for (const s of subs) {
+    if (s.activo === false) continue;
+    try {
+      // Filter on a single field only (incomeSubscriptionId) to avoid needing
+      // a composite Firestore index, then check the month in JS.
+      const existing = await db
+        .collection("income")
+        .where("incomeSubscriptionId", "==", s.id)
+        .get();
+      const alreadyThisMonth = existing.docs.some((d) => d.data().mesGenerado === monthKey);
+      if (alreadyThisMonth) continue;
+
+      await db.collection("income").add({
+        fecha: now.toISOString().slice(0, 10),
+        anio: String(now.getFullYear()),
+        inmueble: s.inmueble,
+        inquilino: s.inquilino,
+        subcategoria: "Monthly Rent",
+        monto: Number(s.monto || 0),
+        mesCubierto: monthLabel,
+        metodoPago: s.metodoPago || "Bank transfer",
+        notas: "Auto-added recurring monthly rent",
+        fotoURL: null,
+        fotoNombre: null,
+        incomeSubscriptionId: s.id,
+        mesGenerado: monthKey,
+        autoGenerado: true,
+        creadoPor: s.creadoPor || "auto",
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      addedCount++;
+    } catch (err) {
+      console.error("Couldn't auto-generate rent charge:", err);
+    }
+  }
+
+  if (addedCount > 0 && $("incomeAutoAddedBanner")) {
+    const banner = $("incomeAutoAddedBanner");
+    banner.textContent = `✅ ${addedCount} monthly rent payment${addedCount > 1 ? "s" : ""} added automatically for ${monthLabel}.`;
+    banner.style.display = "block";
+    setTimeout(() => { banner.style.display = "none"; }, 8000);
+  }
+}
+
+// ---------- Subscriptions ----------
+// A subscription is saved once (name, category, monthly amount). Every time
+// the app is opened, it checks whether this month's charge has already been
+// logged as an expense for that subscription — if not, it creates it
+// automatically so nobody has to re-type it every month.
+if ($("subscriptionForm")) {
+  $("subscriptionForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("saveSubscriptionBtn");
+    const errEl = $("subscriptionError");
+    errEl.textContent = "";
+    const nombre = $("s_nombre").value.trim();
+    const categoria = $("s_categoria").value;
+    const monto = parseFloat($("s_monto").value);
+
+    if (!nombre || !categoria || !monto) {
+      errEl.textContent = "Please complete all fields.";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = "Saving...";
+    try {
+      await db.collection("subscriptions").add({
+        nombre,
+        categoria,
+        subcategoria: "Subscriptions",
+        monto,
+        activo: true,
+        creadoPor: auth.currentUser.email,
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      $("subscriptionForm").reset();
+    } catch (err) {
+      console.error(err);
+      errEl.textContent = "Couldn't save. Please try again.";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Add subscription";
+    }
+  });
+}
+
+function renderSubscriptions(subs) {
+  const el = $("subscriptionList");
+  if (!el) return;
+  if (subs.length === 0) {
+    el.innerHTML = '<div class="empty-state">No subscriptions added yet.</div>';
+    return;
+  }
+  el.innerHTML = subs
+    .map(
+      (s) => `
+    <div class="expense-item">
+      <div class="meta">
+        <div class="desc">${escapeHtml(s.nombre)}</div>
+        <div class="tags"><span>${escapeHtml(s.categoria)}</span></div>
+      </div>
+      <div>
+        <div class="amount">$${Number(s.monto || 0).toFixed(2)}/mo</div>
+        <button class="del" data-id="${s.id}" title="Delete subscription">🗑</button>
+      </div>
+    </div>`
+    )
+    .join("");
+
+  el.querySelectorAll(".del").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (confirm("Delete this subscription? Charges already logged will stay in your expenses.")) {
+        await db.collection("subscriptions").doc(btn.dataset.id).delete();
+      }
+    });
+  });
+}
+
+async function checkAndGenerateSubscriptionCharges(subs) {
+  if (!subs || subs.length === 0) return;
+  const now = new Date();
+  const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  let addedCount = 0;
+
+  for (const s of subs) {
+    if (s.activo === false) continue;
+    try {
+      // Filter on a single field only (subscriptionId) to avoid needing a
+      // composite Firestore index, then check the month in JS.
+      const existing = await db
+        .collection("gastos")
+        .where("subscriptionId", "==", s.id)
+        .get();
+      const alreadyThisMonth = existing.docs.some((d) => d.data().mesGenerado === monthKey);
+      if (alreadyThisMonth) continue;
+
+      const parsed = parseCategoria(s.categoria);
+      await db.collection("gastos").add({
+        fecha: now.toISOString().slice(0, 10),
+        anio: String(now.getFullYear()),
+        comercio: s.nombre,
+        monto: Number(s.monto || 0),
+        categoria: s.categoria,
+        subcategoria: "Subscriptions",
+        persona: parsed.persona,
+        inmueble: parsed.inmueble,
+        businessName: parsed.businessName,
+        soleTrader: parsed.soleTrader,
+        notas: "Auto-added recurring subscription charge",
+        fotoURL: null,
+        fotoNombre: null,
+        subscriptionId: s.id,
+        mesGenerado: monthKey,
+        autoGenerado: true,
+        creadoPor: s.creadoPor || "auto",
+        creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
+      });
+      addedCount++;
+    } catch (err) {
+      console.error("Couldn't auto-generate subscription charge:", err);
+    }
+  }
+
+  if (addedCount > 0 && $("autoAddedBanner")) {
+    const banner = $("autoAddedBanner");
+    banner.textContent = `✅ ${addedCount} subscription charge${addedCount > 1 ? "s" : ""} added automatically for ${monthKey}.`;
+    banner.style.display = "block";
+    setTimeout(() => { banner.style.display = "none"; }, 8000);
+  }
 }
 
 function populateYearFilters() {

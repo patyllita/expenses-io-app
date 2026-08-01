@@ -169,6 +169,27 @@
 
       <!-- TAB: EXPENSES -->
       <section id="tab-gastos" class="tabpanel" style="display:none;">
+        <div class="card" id="autoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
+
+        <div class="card">
+          <h2>Subscriptions</h2>
+          <p class="hint" style="margin:0 0 10px;">Add a recurring subscription once (Netflix, Spotify, software, etc). The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
+          <form id="subscriptionForm">
+            <label>Name</label>
+            <input type="text" id="s_nombre" placeholder="Ex: Netflix" required />
+
+            <label>Category</label>
+            <select id="s_categoria" required></select>
+
+            <label>Monthly amount (USD)</label>
+            <input type="number" id="s_monto" step="0.01" min="0" placeholder="0.00" required />
+
+            <button type="submit" class="secondary" id="saveSubscriptionBtn">Add subscription</button>
+            <div class="error-msg" id="subscriptionError"></div>
+          </form>
+          <div id="subscriptionList" style="margin-top:10px;"><div class="spinner">Loading...</div></div>
+        </div>
+
         <div class="card">
           <h2>Recorded expenses</h2>
           <div class="filters">
@@ -186,6 +207,14 @@
 
       <!-- TAB: PROPERTIES -->
       <section id="tab-inmuebles" class="tabpanel" style="display:none;">
+        <div class="card" id="incomeAutoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
+
+        <div class="card">
+          <h2>Recurring rent</h2>
+          <p class="hint" style="margin:0 0 10px;">When you log a "Monthly Rent" income for a tenant (in the New tab), it's saved here and the app logs that payment automatically every following month. Deposits are never repeated.</p>
+          <div id="incomeSubList"><div class="spinner">Loading...</div></div>
+        </div>
+
         <div class="card">
           <h2>Add / update tenant</h2>
           <form id="tenantForm">
