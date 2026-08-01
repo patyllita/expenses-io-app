@@ -118,6 +118,22 @@ input:focus, select:focus, textarea:focus {
 
 textarea { resize: vertical; min-height: 60px; }
 
+/* Date fields: Safari/iOS renders them with its own centered style and a
+   different height than text inputs, which makes forms look misaligned.
+   This forces them to match every other field. */
+input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  min-height: 49px;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  margin: 0;
+}
+
 input[type="file"] { padding: 11px; background: #F5FBE0; border: 1.5px dashed var(--lime-dark); }
 
 button { font-family: inherit; cursor: pointer; }

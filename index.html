@@ -57,6 +57,7 @@
         <div class="pill-select" id="newTypeToggle">
           <button data-type="expense" class="active">Expense</button>
           <button data-type="income">Income</button>
+          <button data-type="subscription">Subscription</button>
         </div>
 
         <div class="card" id="expenseCard">
@@ -176,6 +177,32 @@
             <button type="submit" class="primary" id="saveIncomeBtn">Save income</button>
             <div class="error-msg" id="incomeError"></div>
           </form>
+        </div>
+
+        <div class="card" id="subscriptionsCard" style="display:none;">
+          <h2>Subscriptions</h2>
+          <p class="hint" style="margin:0 0 10px;">Add any recurring monthly charge once — personal (Netflix, Spotify), or business/property (Internet, software, insurance). Pick the matching category below, including a property if it's a fixed monthly bill for one of the houses. The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
+          <div class="card" id="autoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
+          <form id="subscriptionForm">
+            <label>Name</label>
+            <input type="text" id="s_nombre" placeholder="Ex: Netflix, Internet (13 Saint Brendan's)" required />
+
+            <label>Category</label>
+            <select id="s_categoria" required></select>
+
+            <label>Monthly amount</label>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="s_monto" step="0.01" min="0" placeholder="0.00" required style="flex:1;" />
+              <select id="s_moneda" style="width:100px;flex:none;">
+                <option value="EUR" selected>€ EUR</option>
+                <option value="USD">$ USD</option>
+              </select>
+            </div>
+
+            <button type="submit" class="secondary" id="saveSubscriptionBtn">Add subscription</button>
+            <div class="error-msg" id="subscriptionError"></div>
+          </form>
+          <div id="subscriptionList" style="margin-top:10px;"><div class="spinner">Loading...</div></div>
         </div>
       </section>
 
@@ -313,32 +340,6 @@
           <h2 id="reportSecondaryTitle">Real estate business by subcategory</h2>
           <p class="hint" style="margin:-8px 0 12px;">Tap a subcategory to see every entry.</p>
           <div id="reporteSubcategorias"></div>
-        </div>
-
-        <div class="card" id="subscriptionsCard">
-          <h2>Subscriptions</h2>
-          <p class="hint" style="margin:0 0 10px;">Add any recurring monthly charge once — personal (Netflix, Spotify), or business/property (Internet, software, insurance). Pick the matching category below, including a property if it's a fixed monthly bill for one of the houses. The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
-          <div class="card" id="autoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
-          <form id="subscriptionForm">
-            <label>Name</label>
-            <input type="text" id="s_nombre" placeholder="Ex: Netflix, Internet (13 Saint Brendan's)" required />
-
-            <label>Category</label>
-            <select id="s_categoria" required></select>
-
-            <label>Monthly amount</label>
-            <div style="display:flex;gap:8px;">
-              <input type="number" id="s_monto" step="0.01" min="0" placeholder="0.00" required style="flex:1;" />
-              <select id="s_moneda" style="width:100px;flex:none;">
-                <option value="EUR" selected>€ EUR</option>
-                <option value="USD">$ USD</option>
-              </select>
-            </div>
-
-            <button type="submit" class="secondary" id="saveSubscriptionBtn">Add subscription</button>
-            <div class="error-msg" id="subscriptionError"></div>
-          </form>
-          <div id="subscriptionList" style="margin-top:10px;"><div class="spinner">Loading...</div></div>
         </div>
 
         <div class="card" id="incomeListCard" style="display:none;">

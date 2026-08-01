@@ -237,14 +237,15 @@ document.querySelectorAll("#propertiesMenu button").forEach((btn) => {
   });
 });
 
-// ---------- New: Expense / Income toggle ----------
+// ---------- New: Expense / Income / Subscription toggle ----------
 document.querySelectorAll("#newTypeToggle button").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll("#newTypeToggle button").forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    const isExpense = btn.dataset.type === "expense";
-    $("expenseCard").style.display = isExpense ? "block" : "none";
-    $("incomeCard").style.display = isExpense ? "none" : "block";
+    const type = btn.dataset.type;
+    $("expenseCard").style.display = type === "expense" ? "block" : "none";
+    $("incomeCard").style.display = type === "income" ? "block" : "none";
+    $("subscriptionsCard").style.display = type === "subscription" ? "block" : "none";
   });
 });
 
@@ -773,7 +774,6 @@ function openCategoryDetail(kind, key, label) {
 
   $("categoryListCard").style.display = "none";
   $("reportSecondaryCard").style.display = "none";
-  $("subscriptionsCard").style.display = "none";
   $("incomeListCard").style.display = "none";
   $("tenantStatusCard").style.display = "none";
   $("categoryDetailCard").style.display = "block";
@@ -1193,7 +1193,6 @@ function renderReport() {
     $("reportBreakdownTitle").textContent = "Total by category";
     $("reportSecondaryTitle").textContent = "Real estate business by subcategory";
     $("reportSecondaryCard").style.display = "block";
-    $("subscriptionsCard").style.display = "block";
     $("incomeListCard").style.display = "none";
     $("tenantStatusCard").style.display = "none";
     renderExpenseReport(year);
@@ -1201,7 +1200,6 @@ function renderReport() {
     $("reportBreakdownTitle").textContent = "Total by property";
     $("reportSecondaryTitle").textContent = "Income by type";
     $("reportSecondaryCard").style.display = "block";
-    $("subscriptionsCard").style.display = "none";
     $("incomeListCard").style.display = "block";
     $("tenantStatusCard").style.display = "block";
     renderIncomeReport(year);
