@@ -23,6 +23,15 @@ const storage = firebase.storage();
 
 const $ = (id) => document.getElementById(id);
 
+// ---------- Currency ----------
+// Default currency is EUR. Each expense/income/subscription entry stores its
+// own currency, so an occasional USD charge can be logged without converting it.
+const CURRENCY_SYMBOLS = { EUR: "€", USD: "$" };
+function formatMoney(amount, currency) {
+  const symbol = CURRENCY_SYMBOLS[currency] || CURRENCY_SYMBOLS.EUR;
+  return `${symbol}${Number(amount || 0).toFixed(2)}`;
+}
+
 // ---------- Properties (single source of truth) ----------
 // Edit this list if a property address or landlord changes.
 const PROPERTY_DATA = [
@@ -182,14 +191,30 @@ function translateError(code) {
 }
 
 // ---------- Tab navigation ----------
-document.querySelectorAll("nav.tabbar button").forEach((btn) => {
+const tabButtons = Array.from(document.querySelectorAll("nav.tabbar button"));
+
+function moveTabIndicator(btn) {
+  const indicator = $("tabbarIndicator");
+  if (!indicator || !btn) return;
+  indicator.style.width = btn.offsetWidth + "px";
+  indicator.style.transform = `translateX(${btn.offsetLeft}px)`;
+}
+
+tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll("nav.tabbar button").forEach((b) => b.classList.remove("active"));
+    tabButtons.forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
+    moveTabIndicator(btn);
     document.querySelectorAll(".tabpanel").forEach((p) => (p.style.display = "none"));
     $("tab-" + btn.dataset.tab).style.display = "block";
     if (btn.dataset.tab === "reportes") renderReport();
   });
+});
+// Position the indicator correctly on first load, after layout has settled.
+requestAnimationFrame(() => moveTabIndicator(tabButtons[0]));
+window.addEventListener("resize", () => {
+  const active = tabButtons.find((b) => b.classList.contains("active"));
+  moveTabIndicator(active);
 });
 
 // ---------- New: Expense / Income toggle ----------
@@ -274,6 +299,7 @@ $("expenseForm").addEventListener("submit", async (e) => {
       anio: date ? date.slice(0, 4) : "",
       comercio: $("f_comercio").value.trim(),
       monto: parseFloat($("f_monto").value) || 0,
+      moneda: $("f_moneda").value || "EUR",
       categoria,
       persona,
       businessName,
@@ -315,6 +341,7 @@ $("incomeForm").addEventListener("submit", async (e) => {
     const inquilino = $("i_inquilino").value.trim();
     const subcategoria = $("i_subcategoria").value;
     const monto = parseFloat($("i_monto").value) || 0;
+    const moneda = $("i_moneda").value || "EUR";
     const metodoPago = $("i_metodo").value;
     const now = new Date();
     const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -326,6 +353,7 @@ $("incomeForm").addEventListener("submit", async (e) => {
       inquilino,
       subcategoria,
       monto,
+      moneda,
       mesCubierto: $("i_mes").value.trim(),
       metodoPago,
       notas: $("i_notas").value.trim(),
@@ -346,6 +374,7 @@ $("incomeForm").addEventListener("submit", async (e) => {
           inquilino,
           inmueble,
           monto,
+          moneda,
           metodoPago,
           activo: true,
           creadoPor: auth.currentUser.email,
@@ -429,7 +458,7 @@ function renderIncomeSubscriptions(subs) {
         <div class="tags"><span>${escapeHtml(s.inmueble)}</span>${s.activo === false ? "<span>Paused</span>" : ""}</div>
       </div>
       <div>
-        <div class="amount">$${Number(s.monto || 0).toFixed(2)}/mo</div>
+        <div class="amount">${formatMoney(s.monto, s.moneda)}/mo</div>
         <button class="del" data-id="${s.id}" title="Stop auto-billing">🗑</button>
       </div>
     </div>`
@@ -471,6 +500,7 @@ async function checkAndGenerateIncomeCharges(subs) {
         inquilino: s.inquilino,
         subcategoria: "Monthly Rent",
         monto: Number(s.monto || 0),
+        moneda: s.moneda || "EUR",
         mesCubierto: monthLabel,
         metodoPago: s.metodoPago || "Bank transfer",
         notas: "Auto-added recurring monthly rent",
@@ -524,6 +554,7 @@ if ($("subscriptionForm")) {
         categoria,
         subcategoria: "Subscriptions",
         monto,
+        moneda: $("s_moneda").value || "EUR",
         activo: true,
         creadoPor: auth.currentUser.email,
         creadoEn: firebase.firestore.FieldValue.serverTimestamp(),
@@ -555,7 +586,7 @@ function renderSubscriptions(subs) {
         <div class="tags"><span>${escapeHtml(s.categoria)}</span></div>
       </div>
       <div>
-        <div class="amount">$${Number(s.monto || 0).toFixed(2)}/mo</div>
+        <div class="amount">${formatMoney(s.monto, s.moneda)}/mo</div>
         <button class="del" data-id="${s.id}" title="Delete subscription">🗑</button>
       </div>
     </div>`
@@ -595,6 +626,7 @@ async function checkAndGenerateSubscriptionCharges(subs) {
         anio: String(now.getFullYear()),
         comercio: s.nombre,
         monto: Number(s.monto || 0),
+        moneda: s.moneda || "EUR",
         categoria: s.categoria,
         subcategoria: "Subscriptions",
         persona: parsed.persona,
@@ -675,7 +707,7 @@ function renderExpenses() {
         ${g.fotoURL ? `<a class="photo-link" href="${g.fotoURL}" target="_blank">📎 View document</a>` : ""}
       </div>
       <div>
-        <div class="amount">$${Number(g.monto || 0).toFixed(2)}</div>
+        <div class="amount">${formatMoney(g.monto, g.moneda)}</div>
         <button class="del" data-id="${g.id}" title="Delete">🗑</button>
       </div>
     </div>`
@@ -696,15 +728,36 @@ function escapeHtml(str) {
 }
 
 // ---------- Export current Expenses view ----------
+const EXPENSE_EXPORT_HEADERS = ["Date", "Vendor", "Amount", "Currency", "Category", "Subcategory", "Property", "Business Name", "Sole Trader", "Notes", "Document link", "Logged by"];
+
+function expenseRow(g) {
+  return [
+    g.fecha || "", g.comercio || "", Number(g.monto || 0), g.moneda || "EUR", g.categoria || "",
+    g.subcategoria || "", g.inmueble || "", g.businessName || "", g.soleTrader || "",
+    g.notas || "", g.fotoURL || "", g.creadoPor || "",
+  ];
+}
+
+// Splits expenses into separate tabs so medical, property, sole trade and
+// other personal expenses can each be reviewed (or handed to the accountant)
+// on their own sheet instead of one long mixed list.
+function buildExpenseSheets(items) {
+  const medical = items.filter((g) => g.subcategoria === "Medical expenses");
+  const properties = items.filter((g) => (g.categoria || "").startsWith("Business - ") && !(g.categoria || "").includes("Sole Trade"));
+  const soleTrade = items.filter((g) => (g.categoria || "").includes("Sole Trade"));
+  const personalOther = items.filter((g) => (g.categoria || "").startsWith("Personal") && g.subcategoria !== "Medical expenses");
+
+  return [
+    { name: "Medical Expenses", headers: EXPENSE_EXPORT_HEADERS, rows: medical.map(expenseRow) },
+    { name: "Properties", headers: EXPENSE_EXPORT_HEADERS, rows: properties.map(expenseRow) },
+    { name: "Sole Trade", headers: EXPENSE_EXPORT_HEADERS, rows: soleTrade.map(expenseRow) },
+    { name: "Personal - Other", headers: EXPENSE_EXPORT_HEADERS, rows: personalOther.map(expenseRow) },
+  ];
+}
+
 $("exportCsvBtn").addEventListener("click", () => {
   const items = filteredExpenses();
-  const rows = items.map((g) => [
-    g.fecha || "", g.comercio || "", Number(g.monto || 0), g.categoria || "",
-    g.subcategoria || "", g.inmueble || "", g.businessName || "", g.soleTrader || "",
-    (g.notas || ""), g.fotoURL || "", g.creadoPor || "",
-  ]);
-  const headers = ["Date", "Vendor", "Amount", "Category", "Subcategory", "Property", "Business Name", "Sole Trader", "Notes", "Document link", "Logged by"];
-  downloadExcel([{ name: "Expenses", headers, rows }], `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  downloadExcel(buildExpenseSheets(items), `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`);
 });
 
 function downloadExcel(sheets, fileName) {
@@ -821,7 +874,7 @@ function renderTenants(tenants) {
           <span>${escapeHtml(t.inmueble)}</span>
           <span>RTB: ${escapeHtml(t.rtb)}</span>
           <span>${t.activo === "Yes" ? "Active" : "Inactive"}</span>
-          <br/>Rent: $${Number(t.rentaMensual || 0).toFixed(2)} · Deposit: $${Number(t.deposito || 0).toFixed(2)}
+          <br/>Rent: ${formatMoney(t.rentaMensual, "EUR")} · Deposit: ${formatMoney(t.deposito, "EUR")}
           <br/>Paid through: ${escapeHtml(t.pagadoHasta || "-")}
           ${t.email ? `<br/>Email: ${escapeHtml(t.email)}` : ""}
           ${t.ppsn ? ` · PPSN: ${escapeHtml(t.ppsn)}` : ""}
@@ -916,53 +969,125 @@ $("generateLetterBtn").addEventListener("click", () => {
   const start = formatDateNice($("l_start").value) || "the tenancy start date";
   const end = ($("l_end").value || "").trim() || "Present";
   const today = formatDateNice(new Date().toISOString().slice(0, 10));
-  const signOff = [prop.landlord, prop.phone, ...(prop.email ? [prop.email] : []), today];
 
-  let lines;
+  // Both landlords are named on every letter, regardless of which one is the
+  // official registered landlord for that specific property.
+  const jointLandlordNames = "Carlos Rojas and Patrizia Gonzalez";
+
+  let bodyParagraphs, subject;
   if (type === "recommendation") {
-    lines = [
-      "To Whom It May Concern,",
-      "",
+    subject = `Character Reference for ${tenant.nombre}`;
+    bodyParagraphs = [
       `I am writing to recommend ${tenant.nombre}, who has rented the property at ${prop.full} from ${start} to ${end}.`,
-      "",
       `During the tenancy, ${tenant.nombre} has been a reliable and respectful tenant. The property has been treated with care, rent has been paid as agreed, and communication has been professional and straightforward.`,
-      "",
       `Based on my experience, I would be comfortable recommending ${tenant.nombre} to a future landlord or letting agent.`,
-      "",
       "Please contact me should you require any further information.",
-      "",
-      "Yours sincerely,",
-      ...signOff,
     ];
   } else {
-    lines = [
-      "To Whom It May Concern,",
-      "",
-      `I, ${prop.landlord}, confirm that ${tenant.nombre} currently resides at the following address:`,
+    subject = `Confirmation of Residence for ${tenant.nombre}`;
+    bodyParagraphs = [
+      `I, ${jointLandlordNames}, confirm that ${tenant.nombre} currently resides at the following address:`,
       prop.full,
-      "",
       `${tenant.nombre} has resided at this address since ${start} and is currently a tenant at the property.`,
-      "",
       "This letter is issued at the tenant's request as confirmation of their residential address.",
-      "",
       "Please contact me should you require any further information.",
-      "",
-      "Yours sincerely,",
-      "",
-      ...signOff,
     ];
   }
 
-  openLetterWindow(lines);
+  openFormalLetterWindow({
+    landlordName: jointLandlordNames,
+    landlordPhone: prop.phone,
+    landlordEmail: prop.email,
+    propertyFull: prop.full,
+    subject,
+    bodyParagraphs,
+    dateStr: today,
+  });
 });
 
-function openLetterWindow(lines) {
-  const body = lines.map(escapeHtml).join("\n");
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Letter</title>
+// Builds a more formal, letterhead-style printable letter: sender block,
+// date, a "Re:" subject line, justified body paragraphs, and a proper
+// signature block — instead of a plain block of text.
+function openFormalLetterWindow({ landlordName, landlordPhone, landlordEmail, propertyFull, subject, bodyParagraphs, dateStr }) {
+  const paragraphsHtml = bodyParagraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("\n");
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${escapeHtml(subject)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,600;1,400&family=Pinyon+Script&display=swap" rel="stylesheet">
 <style>
-body { font-family: Georgia, 'Times New Roman', serif; max-width: 680px; margin: 60px auto; line-height: 1.7; color: #14140F; font-size: 15px; white-space: pre-wrap; }
-@media print { body { margin: 20px; } }
-</style></head><body>${body}</body></html>`;
+  @page { margin: 2.2cm; }
+  body {
+    font-family: 'EB Garamond', Georgia, 'Times New Roman', serif;
+    max-width: 680px;
+    margin: 50px auto;
+    color: #14140F;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  .letterhead {
+    border-bottom: 2px solid #14140F;
+    padding-bottom: 10px;
+    margin-bottom: 30px;
+  }
+  .letterhead .name {
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .letterhead .role {
+    font-size: 11px;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 2px;
+  }
+  .date-line { text-align: right; font-size: 13px; color: #333; margin-bottom: 26px; }
+  .subject { font-weight: 600; margin-bottom: 22px; font-size: 14px; }
+  p { margin: 0 0 14px; text-align: justify; }
+  .signoff { margin-top: 40px; }
+  .signature {
+    font-family: 'Pinyon Script', cursive;
+    font-size: 23px;
+    margin: 8px 0 0;
+    color: #14140F;
+  }
+  .sig-line {
+    border-top: 1px solid #14140F;
+    width: 260px;
+    padding-top: 6px;
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  .sig-line .sig-name { font-weight: 600; font-size: 13px; }
+  @media print { body { margin: 0; } }
+</style></head><body>
+
+<div class="letterhead">
+  <div class="name">${escapeHtml(landlordName)}</div>
+  <div class="role">Private Landlords</div>
+</div>
+
+<div class="date-line">${escapeHtml(dateStr)}</div>
+
+<div class="subject">Re: ${escapeHtml(subject)}</div>
+
+<p>To Whom It May Concern,</p>
+
+${paragraphsHtml}
+
+<div class="signoff">
+  <p style="margin-bottom:0;">Yours sincerely,</p>
+  <div class="signature">${escapeHtml(landlordName)}</div>
+  <div class="sig-line">
+    <div class="sig-name">${escapeHtml(landlordName)}</div>
+    <div>${escapeHtml(propertyFull)}</div>
+    ${landlordPhone ? `<div>${escapeHtml(landlordPhone)}</div>` : ""}
+    ${landlordEmail ? `<div>${escapeHtml(landlordEmail)}</div>` : ""}
+  </div>
+</div>
+
+</body></html>`;
+
   const win = window.open("", "_blank");
   if (!win) {
     alert("Please allow pop-ups to generate the letter.");
@@ -1016,20 +1141,29 @@ function renderExpenseReport(year) {
   const totalYear = items.reduce((s, g) => s + Number(g.monto || 0), 0);
   const totalPersonal = items.filter((g) => (g.categoria || "").startsWith("Personal")).reduce((s, g) => s + Number(g.monto || 0), 0);
   const totalBusiness = items.filter((g) => (g.categoria || "").startsWith("Business")).reduce((s, g) => s + Number(g.monto || 0), 0);
+  const hasMixedCurrency = items.some((g) => g.moneda === "USD");
 
   $("reporteStats").innerHTML = `
-    <div class="stat-card"><div class="label">Total ${year}</div><div class="value">$${totalYear.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="label">Total ${year}</div><div class="value">€${totalYear.toFixed(2)}</div></div>
     <div class="stat-card"><div class="label">Expenses logged</div><div class="value">${items.length}</div></div>
-    <div class="stat-card"><div class="label">Personal</div><div class="value">$${totalPersonal.toFixed(2)}</div></div>
-    <div class="stat-card"><div class="label">Business</div><div class="value">$${totalBusiness.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="label">Personal</div><div class="value">€${totalPersonal.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="label">Business</div><div class="value">€${totalBusiness.toFixed(2)}</div></div>
   `;
+  const oldNote = $("currencyNoteExp");
+  if (oldNote) oldNote.remove();
+  if (hasMixedCurrency) {
+    $("reporteStats").insertAdjacentHTML(
+      "afterend",
+      '<p class="hint" id="currencyNoteExp" style="margin-top:10px;">⚠️ These totals add USD amounts at face value (not converted to EUR) — check individual entries for their real currency.</p>'
+    );
+  }
 
   const totals = {};
   CATEGORIES.forEach((c) => (totals[c] = 0));
   items.forEach((g) => { if (totals[g.categoria] !== undefined) totals[g.categoria] += Number(g.monto || 0); });
 
   $("reporteCategorias").innerHTML = CATEGORIES
-    .map((c) => `<div class="summary-row"><span class="label">${c}</span><span class="value">$${totals[c].toFixed(2)}</span></div>`)
+    .map((c) => `<div class="summary-row"><span class="label">${c}</span><span class="value">€${totals[c].toFixed(2)}</span></div>`)
     .join("");
 
   const byProp = {};
@@ -1046,7 +1180,7 @@ function renderExpenseReport(year) {
   $("reporteSubcategorias").innerHTML = SUBCATEGORIES
     .map((s) => {
       const rows = PROPERTY_NAMES.map(
-        (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>$${byProp[s][p].toFixed(2)}</span></div>`
+        (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>€${byProp[s][p].toFixed(2)}</span></div>`
       ).join("");
       return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">${s}</div>${rows}</div>`;
     })
@@ -1060,15 +1194,24 @@ function renderIncomeReport(year) {
     label: p,
     total: items.filter((i) => i.inmueble === p).reduce((s, i) => s + Number(i.monto || 0), 0),
   }));
+  const hasMixedCurrencyInc = items.some((i) => i.moneda === "USD");
 
   $("reporteStats").innerHTML = `
-    <div class="stat-card"><div class="label">Total income ${year}</div><div class="value">$${totalYear.toFixed(2)}</div></div>
+    <div class="stat-card"><div class="label">Total income ${year}</div><div class="value">€${totalYear.toFixed(2)}</div></div>
     <div class="stat-card"><div class="label">Payments logged</div><div class="value">${items.length}</div></div>
-    ${propTotals.map((pt) => `<div class="stat-card"><div class="label">${pt.label}</div><div class="value">$${pt.total.toFixed(2)}</div></div>`).join("")}
+    ${propTotals.map((pt) => `<div class="stat-card"><div class="label">${pt.label}</div><div class="value">€${pt.total.toFixed(2)}</div></div>`).join("")}
   `;
+  const oldNoteInc = $("currencyNoteInc");
+  if (oldNoteInc) oldNoteInc.remove();
+  if (hasMixedCurrencyInc) {
+    $("reporteStats").insertAdjacentHTML(
+      "afterend",
+      '<p class="hint" id="currencyNoteInc" style="margin-top:10px;">⚠️ These totals add USD amounts at face value (not converted to EUR) — check individual entries for their real currency.</p>'
+    );
+  }
 
   $("reporteCategorias").innerHTML = propTotals
-    .map((pt) => `<div class="summary-row"><span class="label">${pt.label}</span><span class="value">$${pt.total.toFixed(2)}</span></div>`)
+    .map((pt) => `<div class="summary-row"><span class="label">${pt.label}</span><span class="value">€${pt.total.toFixed(2)}</span></div>`)
     .join("");
 
   const INCOME_SUBCATS = ["Monthly Rent", "Deposit"];
@@ -1085,7 +1228,7 @@ function renderIncomeReport(year) {
   $("reporteSubcategorias").innerHTML = INCOME_SUBCATS
     .map((s) => {
       const rows = PROPERTY_NAMES.map(
-        (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>$${byPropSub[s][p].toFixed(2)}</span></div>`
+        (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>€${byPropSub[s][p].toFixed(2)}</span></div>`
       ).join("");
       return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">${s}</div>${rows}</div>`;
     })
@@ -1116,7 +1259,7 @@ function renderIncomeList(items) {
         ${i.fotoURL ? `<a class="photo-link" href="${i.fotoURL}" target="_blank">📎 View receipt</a>` : ""}
       </div>
       <div>
-        <div class="amount">$${Number(i.monto || 0).toFixed(2)}</div>
+        <div class="amount">${formatMoney(i.monto, i.moneda)}</div>
         <button class="del" data-id="${i.id}" title="Delete">🗑</button>
       </div>
     </div>`
@@ -1137,36 +1280,29 @@ $("exportExcelBtn").addEventListener("click", () => {
 
   if (reportMode === "expense") {
     const items = allExpenses.filter((g) => g.anio === year);
-    const headersExp = ["Date", "Vendor", "Amount", "Category", "Subcategory", "Property", "Business Name", "Sole Trader", "Notes", "Document link", "Logged by"];
-    const rowsExp = items.map((g) => [
-      g.fecha || "", g.comercio || "", Number(g.monto || 0), g.categoria || "",
-      g.subcategoria || "", g.inmueble || "", g.businessName || "", g.soleTrader || "",
-      g.notas || "", g.fotoURL || "", g.creadoPor || "",
-    ]);
-
     const totals = {};
     CATEGORIES.forEach((c) => (totals[c] = 0));
     items.forEach((g) => { if (totals[g.categoria] !== undefined) totals[g.categoria] += Number(g.monto || 0); });
     const rowsSummary = CATEGORIES.map((c) => [c, totals[c]]);
-    rowsSummary.push(["TOTAL", items.reduce((s, g) => s + Number(g.monto || 0), 0)]);
+    rowsSummary.push(["TOTAL (EUR value shown at face value; USD not converted)", items.reduce((s, g) => s + Number(g.monto || 0), 0)]);
 
     downloadExcel(
       [
-        { name: `Expenses ${year}`, headers: headersExp, rows: rowsExp },
+        ...buildExpenseSheets(items),
         { name: `Summary ${year}`, headers: ["Category", "Total"], rows: rowsSummary },
       ],
       `expense_report_${year}.xlsx`
     );
   } else {
     const items = allIncome.filter((i) => i.anio === year);
-    const headersInc = ["Date", "Property", "Tenant", "Subcategory", "Amount", "Month covered", "Payment method", "Notes", "Receipt link", "Logged by"];
+    const headersInc = ["Date", "Property", "Tenant", "Subcategory", "Amount", "Currency", "Month covered", "Payment method", "Notes", "Receipt link", "Logged by"];
     const rowsInc = items.map((i) => [
-      i.fecha || "", i.inmueble || "", i.inquilino || "", i.subcategoria || "", Number(i.monto || 0),
+      i.fecha || "", i.inmueble || "", i.inquilino || "", i.subcategoria || "", Number(i.monto || 0), i.moneda || "EUR",
       i.mesCubierto || "", i.metodoPago || "", i.notas || "", i.fotoURL || "", i.creadoPor || "",
     ]);
 
     const rowsSummary = PROPERTY_NAMES.map((p) => [p, items.filter((i) => i.inmueble === p).reduce((s, i) => s + Number(i.monto || 0), 0)]);
-    rowsSummary.push(["TOTAL", items.reduce((s, i) => s + Number(i.monto || 0), 0)]);
+    rowsSummary.push(["TOTAL (EUR value shown at face value; USD not converted)", items.reduce((s, i) => s + Number(i.monto || 0), 0)]);
 
     downloadExcel(
       [

@@ -68,8 +68,14 @@
             <label>Vendor / Description</label>
             <input type="text" id="f_comercio" placeholder="Ex: City Pharmacy" required />
 
-            <label>Amount (USD)</label>
-            <input type="number" id="f_monto" step="0.01" min="0" placeholder="0.00" required />
+            <label>Amount</label>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="f_monto" step="0.01" min="0" placeholder="0.00" required style="flex:1;" />
+              <select id="f_moneda" style="width:100px;flex:none;">
+                <option value="EUR" selected>€ EUR</option>
+                <option value="USD">$ USD</option>
+              </select>
+            </div>
 
             <label>Category</label>
             <div class="pill-select" id="f_typeToggle">
@@ -142,8 +148,14 @@
               <option>Deposit</option>
             </select>
 
-            <label>Amount (USD)</label>
-            <input type="number" id="i_monto" step="0.01" min="0" placeholder="0.00" required />
+            <label>Amount</label>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="i_monto" step="0.01" min="0" placeholder="0.00" required style="flex:1;" />
+              <select id="i_moneda" style="width:100px;flex:none;">
+                <option value="EUR" selected>€ EUR</option>
+                <option value="USD">$ USD</option>
+              </select>
+            </div>
 
             <label>Month covered</label>
             <input type="text" id="i_mes" placeholder="Ex: July 2026" />
@@ -173,16 +185,22 @@
 
         <div class="card">
           <h2>Subscriptions</h2>
-          <p class="hint" style="margin:0 0 10px;">Add a recurring subscription once (Netflix, Spotify, software, etc). The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
+          <p class="hint" style="margin:0 0 10px;">Add any recurring monthly charge once — personal (Netflix, Spotify), or business/property (Internet, software, insurance). Pick the matching category below, including a property if it's a fixed monthly bill for one of the houses. The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
           <form id="subscriptionForm">
             <label>Name</label>
-            <input type="text" id="s_nombre" placeholder="Ex: Netflix" required />
+            <input type="text" id="s_nombre" placeholder="Ex: Netflix, Internet (13 Saint Brendan's)" required />
 
             <label>Category</label>
             <select id="s_categoria" required></select>
 
-            <label>Monthly amount (USD)</label>
-            <input type="number" id="s_monto" step="0.01" min="0" placeholder="0.00" required />
+            <label>Monthly amount</label>
+            <div style="display:flex;gap:8px;">
+              <input type="number" id="s_monto" step="0.01" min="0" placeholder="0.00" required style="flex:1;" />
+              <select id="s_moneda" style="width:100px;flex:none;">
+                <option value="EUR" selected>€ EUR</option>
+                <option value="USD">$ USD</option>
+              </select>
+            </div>
 
             <button type="submit" class="secondary" id="saveSubscriptionBtn">Add subscription</button>
             <div class="error-msg" id="subscriptionError"></div>
@@ -236,10 +254,10 @@
               <option>Yes</option>
             </select>
 
-            <label>Deposit (USD)</label>
+            <label>Deposit (EUR)</label>
             <input type="number" id="t_deposito" step="0.01" min="0" />
 
-            <label>Monthly rent (USD)</label>
+            <label>Monthly rent (EUR)</label>
             <input type="number" id="t_renta" step="0.01" min="0" />
 
             <label>Paid through (month/year)</label>
@@ -330,10 +348,23 @@
     </main>
 
     <nav class="tabbar">
-      <button data-tab="nuevo" class="active"><span class="icon">➕</span>New</button>
-      <button data-tab="gastos"><span class="icon">🧾</span>Expenses</button>
-      <button data-tab="inmuebles"><span class="icon">🏘️</span>Properties</button>
-      <button data-tab="reportes"><span class="icon">📊</span>Reports</button>
+      <div class="tabbar-indicator" id="tabbarIndicator"></div>
+      <button data-tab="nuevo" class="active">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v8M8 12h8"></path></svg></span>
+        New
+      </button>
+      <button data-tab="gastos">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h4"></path></svg></span>
+        Expenses
+      </button>
+      <button data-tab="inmuebles">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l8-5 8 5v12"></path><path d="M9 21v-6h6v6"></path><path d="M9 12h.01M15 12h.01"></path></svg></span>
+        Properties
+      </button>
+      <button data-tab="reportes">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 15v3M12 10v8M17 6v12"></path></svg></span>
+        Reports
+      </button>
     </nav>
   </div>
 </div>
