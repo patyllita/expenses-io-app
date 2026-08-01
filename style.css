@@ -292,3 +292,7 @@ nav.tabbar button.active { color: var(--black); }
   transition: background 0.2s var(--ease), color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 .pill-select button.active { background: var(--card); color: var(--black); box-shadow: 0 1px 3px rgba(20,20,15,0.12); }
+
+.summary-row[data-cat], .summary-row[data-prop] { transition: opacity 0.15s var(--ease); }
+.summary-row[data-cat]:active, .summary-row[data-prop]:active { opacity: 0.6; }
+.subcat-header:active { opacity: 0.6; }

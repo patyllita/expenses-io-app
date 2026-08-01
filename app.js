@@ -77,9 +77,6 @@ function populatePropertySelects() {
   $("i_inmueble").innerHTML = propertyOptionsHTML;
   $("t_inmueble").innerHTML = propertyOptionsHTML;
 
-  const filterOptionsHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join("");
-  $("filterCategoria").insertAdjacentHTML("beforeend", filterOptionsHTML);
-
   if ($("s_categoria")) {
     $("s_categoria").innerHTML = CATEGORIES.map((c) => `<option>${c}</option>`).join("");
   }
@@ -200,11 +197,22 @@ function moveTabIndicator(btn) {
   indicator.style.transform = `translateX(${btn.offsetLeft}px)`;
 }
 
+// Icons use a hardcoded stroke color (not currentColor) for reliability, so
+// we recolor them manually here whenever the active tab changes.
+function updateTabIconColors(activeBtn) {
+  tabButtons.forEach((b) => {
+    const svg = b.querySelector(".icon svg");
+    if (!svg) return;
+    svg.setAttribute("stroke", b === activeBtn ? "#14140F" : "#86857C");
+  });
+}
+
 tabButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     tabButtons.forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
     moveTabIndicator(btn);
+    updateTabIconColors(btn);
     document.querySelectorAll(".tabpanel").forEach((p) => (p.style.display = "none"));
     $("tab-" + btn.dataset.tab).style.display = "block";
     if (btn.dataset.tab === "reportes") renderReport();
@@ -215,6 +223,18 @@ requestAnimationFrame(() => moveTabIndicator(tabButtons[0]));
 window.addEventListener("resize", () => {
   const active = tabButtons.find((b) => b.classList.contains("active"));
   moveTabIndicator(active);
+});
+
+// ---------- Properties tab: sub-menu (Manage / Tenants / Letters) ----------
+// Keeps the three Properties cards in separate views instead of stacked, so
+// there's far less scrolling to get to the one you need.
+document.querySelectorAll("#propertiesMenu button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#propertiesMenu button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    document.querySelectorAll(".prop-section").forEach((s) => (s.style.display = "none"));
+    $("propSection-" + btn.dataset.psec).style.display = "block";
+  });
 });
 
 // ---------- New: Expense / Income toggle ----------
@@ -413,7 +433,6 @@ function initData() {
   db.collection("gastos").orderBy("fecha", "desc").onSnapshot((snap) => {
     allExpenses = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     populateYearFilters();
-    renderExpenses();
     if ($("tab-reportes").style.display !== "none") renderReport();
   });
 
@@ -661,11 +680,6 @@ function populateYearFilters() {
     new Set([...allExpenses.map((g) => g.anio), ...allIncome.map((i) => i.anio)].filter(Boolean))
   ).sort().reverse();
 
-  const sel = $("filterAno");
-  const currentVal = sel.value;
-  sel.innerHTML = '<option value="">All years</option>' + years.map((y) => `<option value="${y}">${y}</option>`).join("");
-  sel.value = years.includes(currentVal) ? currentVal : "";
-
   const selReport = $("reporteAno");
   const currentYear = String(new Date().getFullYear());
   const reportYears = Array.from(new Set([currentYear, ...years])).sort().reverse();
@@ -674,27 +688,44 @@ function populateYearFilters() {
   selReport.value = reportYears.includes(reportVal) ? reportVal : currentYear;
 }
 
-$("filterCategoria").addEventListener("change", renderExpenses);
-$("filterAno").addEventListener("change", renderExpenses);
-
-function filteredExpenses() {
-  const cat = $("filterCategoria").value;
-  const year = $("filterAno").value;
-  return allExpenses.filter((g) => (!cat || g.categoria === cat) && (!year || g.anio === year));
-}
-
-function renderExpenses() {
-  const items = filteredExpenses();
-  const list = $("expenseList");
-
+// Renders a list of expense or income entries into the Reports drill-down
+// panel (#categoryDetailList), reusing the same "expense-item" row style
+// used elsewhere in the app.
+function renderDetailList(items, kind) {
+  const list = $("categoryDetailList");
+  if (!list) return;
   if (items.length === 0) {
-    list.innerHTML = '<div class="empty-state">No expenses recorded yet.</div>';
+    list.innerHTML = '<div class="empty-state">No entries found.</div>';
     return;
   }
 
-  list.innerHTML = items
-    .map(
-      (g) => `
+  if (kind === "income") {
+    list.innerHTML = items
+      .map(
+        (i) => `
+    <div class="expense-item">
+      <div class="meta">
+        <div class="desc">${escapeHtml(i.inquilino || "(no tenant name)")}</div>
+        <div class="tags">
+          <span>${escapeHtml(i.inmueble || "")}</span>
+          ${i.subcategoria ? `<span>${escapeHtml(i.subcategoria)}</span>` : ""}
+          ${i.mesCubierto ? `<span>${escapeHtml(i.mesCubierto)}</span>` : ""}
+          <br/>${i.fecha || ""} ${i.metodoPago ? "· " + escapeHtml(i.metodoPago) : ""}
+          <br/><span style="color:var(--muted);font-weight:600;">Added by ${escapeHtml(i.creadoPor || "unknown")}</span>
+        </div>
+        ${i.fotoURL ? `<a class="photo-link" href="${i.fotoURL}" target="_blank">📎 View receipt</a>` : ""}
+      </div>
+      <div>
+        <div class="amount">${formatMoney(i.monto, i.moneda)}</div>
+        <button class="del" data-id="${i.id}" data-coll="income" title="Delete">🗑</button>
+      </div>
+    </div>`
+      )
+      .join("");
+  } else {
+    list.innerHTML = items
+      .map(
+        (g) => `
     <div class="expense-item">
       <div class="meta">
         <div class="desc">${escapeHtml(g.comercio || "(no description)")}</div>
@@ -708,19 +739,55 @@ function renderExpenses() {
       </div>
       <div>
         <div class="amount">${formatMoney(g.monto, g.moneda)}</div>
-        <button class="del" data-id="${g.id}" title="Delete">🗑</button>
+        <button class="del" data-id="${g.id}" data-coll="gastos" title="Delete">🗑</button>
       </div>
     </div>`
-    )
-    .join("");
+      )
+      .join("");
+  }
 
   list.querySelectorAll(".del").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      if (confirm("Delete this expense?")) {
-        await db.collection("gastos").doc(btn.dataset.id).delete();
+      if (confirm("Delete this entry?")) {
+        await db.collection(btn.dataset.coll).doc(btn.dataset.id).delete();
       }
     });
   });
+}
+
+// Opens the drill-down panel showing every entry for a given category (or
+// property, for income) in the currently selected report year, and hides
+// the summary cards while it's open.
+function openCategoryDetail(kind, key, label) {
+  const year = $("reporteAno").value || String(new Date().getFullYear());
+  let items;
+  if (kind === "income") {
+    items = allIncome.filter((i) => i.anio === year && i.inmueble === key);
+  } else if (kind === "expense-subcat") {
+    items = allExpenses.filter((g) => g.anio === year && g.subcategoria === key);
+  } else if (kind === "income-subcat") {
+    items = allIncome.filter((i) => i.anio === year && i.subcategoria === key);
+  } else {
+    items = allExpenses.filter((g) => g.anio === year && g.categoria === key);
+  }
+
+  $("categoryListCard").style.display = "none";
+  $("reportSecondaryCard").style.display = "none";
+  $("subscriptionsCard").style.display = "none";
+  $("incomeListCard").style.display = "none";
+  $("tenantStatusCard").style.display = "none";
+  $("categoryDetailCard").style.display = "block";
+  $("categoryDetailTitle").textContent = `${label} (${year})`;
+  renderDetailList(items, kind === "income" || kind === "income-subcat" ? "income" : "expense");
+}
+
+function closeCategoryDetail() {
+  $("categoryDetailCard").style.display = "none";
+  renderReport();
+}
+
+if ($("categoryDetailBack")) {
+  $("categoryDetailBack").addEventListener("click", closeCategoryDetail);
 }
 
 function escapeHtml(str) {
@@ -754,11 +821,6 @@ function buildExpenseSheets(items) {
     { name: "Personal - Other", headers: EXPENSE_EXPORT_HEADERS, rows: personalOther.map(expenseRow) },
   ];
 }
-
-$("exportCsvBtn").addEventListener("click", () => {
-  const items = filteredExpenses();
-  downloadExcel(buildExpenseSheets(items), `expenses_${new Date().toISOString().slice(0, 10)}.xlsx`);
-});
 
 function downloadExcel(sheets, fileName) {
   const wb = XLSX.utils.book_new();
@@ -847,6 +909,10 @@ function startEditingTenant(id) {
   $("t_carta").value = "";
   $("saveTenantBtn").textContent = "Update tenant";
   $("cancelEditTenantBtn").style.display = "block";
+
+  // Jump to the "Manage" sub-section so the form is actually visible.
+  const manageBtn = document.querySelector('#propertiesMenu button[data-psec="manage"]');
+  if (manageBtn) manageBtn.click();
   $("tenantForm").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
@@ -1118,10 +1184,16 @@ const SUBCATEGORIES = SUBCATS_BUSINESS;
 function renderReport() {
   const year = $("reporteAno").value || String(new Date().getFullYear());
 
+  // Always reset to the summary view (not the drill-down) whenever the
+  // report mode, year, or underlying data changes.
+  $("categoryDetailCard").style.display = "none";
+  $("categoryListCard").style.display = "block";
+
   if (reportMode === "expense") {
     $("reportBreakdownTitle").textContent = "Total by category";
     $("reportSecondaryTitle").textContent = "Real estate business by subcategory";
     $("reportSecondaryCard").style.display = "block";
+    $("subscriptionsCard").style.display = "block";
     $("incomeListCard").style.display = "none";
     $("tenantStatusCard").style.display = "none";
     renderExpenseReport(year);
@@ -1129,6 +1201,7 @@ function renderReport() {
     $("reportBreakdownTitle").textContent = "Total by property";
     $("reportSecondaryTitle").textContent = "Income by type";
     $("reportSecondaryCard").style.display = "block";
+    $("subscriptionsCard").style.display = "none";
     $("incomeListCard").style.display = "block";
     $("tenantStatusCard").style.display = "block";
     renderIncomeReport(year);
@@ -1163,8 +1236,11 @@ function renderExpenseReport(year) {
   items.forEach((g) => { if (totals[g.categoria] !== undefined) totals[g.categoria] += Number(g.monto || 0); });
 
   $("reporteCategorias").innerHTML = CATEGORIES
-    .map((c) => `<div class="summary-row"><span class="label">${c}</span><span class="value">€${totals[c].toFixed(2)}</span></div>`)
+    .map((c) => `<div class="summary-row" data-cat="${escapeHtml(c)}" style="cursor:pointer;"><span class="label">${c}</span><span class="value">€${totals[c].toFixed(2)}</span></div>`)
     .join("");
+  $("reporteCategorias").querySelectorAll("[data-cat]").forEach((row) => {
+    row.addEventListener("click", () => openCategoryDetail("expense", row.dataset.cat, row.dataset.cat));
+  });
 
   const byProp = {};
   SUBCATEGORIES.forEach((s) => {
@@ -1182,9 +1258,12 @@ function renderExpenseReport(year) {
       const rows = PROPERTY_NAMES.map(
         (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>€${byProp[s][p].toFixed(2)}</span></div>`
       ).join("");
-      return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">${s}</div>${rows}</div>`;
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="subcat-header" data-subcat="${escapeHtml(s)}" style="font-weight:700;font-size:13px;margin-bottom:4px;cursor:pointer;">${s} &rsaquo;</div>${rows}</div>`;
     })
     .join("");
+  $("reporteSubcategorias").querySelectorAll("[data-subcat]").forEach((row) => {
+    row.addEventListener("click", () => openCategoryDetail("expense-subcat", row.dataset.subcat, row.dataset.subcat));
+  });
 }
 
 function renderIncomeReport(year) {
@@ -1211,8 +1290,11 @@ function renderIncomeReport(year) {
   }
 
   $("reporteCategorias").innerHTML = propTotals
-    .map((pt) => `<div class="summary-row"><span class="label">${pt.label}</span><span class="value">€${pt.total.toFixed(2)}</span></div>`)
+    .map((pt) => `<div class="summary-row" data-prop="${escapeHtml(pt.label)}" style="cursor:pointer;"><span class="label">${pt.label}</span><span class="value">€${pt.total.toFixed(2)}</span></div>`)
     .join("");
+  $("reporteCategorias").querySelectorAll("[data-prop]").forEach((row) => {
+    row.addEventListener("click", () => openCategoryDetail("income", row.dataset.prop, row.dataset.prop));
+  });
 
   const INCOME_SUBCATS = ["Monthly Rent", "Deposit"];
   const byPropSub = {};
@@ -1230,9 +1312,12 @@ function renderIncomeReport(year) {
       const rows = PROPERTY_NAMES.map(
         (p) => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted);padding:2px 0;"><span>${p}</span><span>€${byPropSub[s][p].toFixed(2)}</span></div>`
       ).join("");
-      return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div style="font-weight:700;font-size:13px;margin-bottom:4px;">${s}</div>${rows}</div>`;
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--border);"><div class="subcat-header" data-subcat="${escapeHtml(s)}" style="font-weight:700;font-size:13px;margin-bottom:4px;cursor:pointer;">${s} &rsaquo;</div>${rows}</div>`;
     })
     .join("");
+  $("reporteSubcategorias").querySelectorAll("[data-subcat]").forEach((row) => {
+    row.addEventListener("click", () => openCategoryDetail("income-subcat", row.dataset.subcat, row.dataset.subcat));
+  });
 
   renderIncomeList(items);
 }

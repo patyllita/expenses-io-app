@@ -179,13 +179,146 @@
         </div>
       </section>
 
-      <!-- TAB: EXPENSES -->
-      <section id="tab-gastos" class="tabpanel" style="display:none;">
-        <div class="card" id="autoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
+      <!-- TAB: PROPERTIES -->
+      <section id="tab-inmuebles" class="tabpanel" style="display:none;">
+        <div class="pill-select" id="propertiesMenu">
+          <button data-psec="manage" class="active">Manage</button>
+          <button data-psec="tenants">Tenants</button>
+          <button data-psec="letters">Letters</button>
+        </div>
 
+        <div id="propSection-manage" class="prop-section">
+          <div class="card">
+            <h2>Add / update tenant</h2>
+            <form id="tenantForm">
+              <label>Full name</label>
+              <input type="text" id="t_nombre" required />
+
+              <label>Email</label>
+              <input type="email" id="t_email" placeholder="name@example.com" />
+
+              <label>PPSN</label>
+              <input type="text" id="t_ppsn" placeholder="Ex: 1234567T" />
+
+              <label>Property</label>
+              <select id="t_inmueble" required></select>
+
+              <label>Registered with RTB</label>
+              <select id="t_rtb">
+                <option>No</option>
+                <option>Yes</option>
+              </select>
+
+              <label>Deposit (EUR)</label>
+              <input type="number" id="t_deposito" step="0.01" min="0" />
+
+              <label>Monthly rent (EUR)</label>
+              <input type="number" id="t_renta" step="0.01" min="0" />
+
+              <label>Paid through (month/year)</label>
+              <input type="text" id="t_pagado" placeholder="Ex: July 2026" />
+
+              <label>Currently living there?</label>
+              <select id="t_activo">
+                <option>Yes</option>
+                <option>No</option>
+              </select>
+
+              <label>Move-in date</label>
+              <input type="date" id="t_ingreso" />
+
+              <label>Passport photo</label>
+              <input type="file" id="t_pasaporte" accept="image/*,application/pdf" />
+
+              <label>Employment letter</label>
+              <input type="file" id="t_carta" accept="image/*,application/pdf" />
+
+              <label>Notes</label>
+              <textarea id="t_notas"></textarea>
+
+              <button type="submit" class="primary" id="saveTenantBtn">Save tenant</button>
+              <button type="button" class="secondary" id="cancelEditTenantBtn" style="display:none;">Cancel edit</button>
+              <div class="error-msg" id="tenantError"></div>
+            </form>
+          </div>
+        </div>
+
+        <div id="propSection-tenants" class="prop-section" style="display:none;">
+          <div class="card" id="incomeAutoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
+
+          <div class="card">
+            <h2>Recurring rent</h2>
+            <p class="hint" style="margin:0 0 10px;">When you log a "Monthly Rent" income for a tenant (in the New tab), it's saved here and the app logs that payment automatically every following month. Deposits are never repeated.</p>
+            <div id="incomeSubList"><div class="spinner">Loading...</div></div>
+          </div>
+
+          <div class="card">
+            <h2>Registered tenants</h2>
+            <div id="tenantList"><div class="spinner">Loading...</div></div>
+          </div>
+        </div>
+
+        <div id="propSection-letters" class="prop-section" style="display:none;">
+          <div class="card">
+            <h2>Generate tenant letter</h2>
+            <label>Tenant</label>
+            <select id="l_tenant"></select>
+
+            <label>Letter type</label>
+            <select id="l_type">
+              <option value="recommendation">Recommendation letter</option>
+              <option value="address">Proof of address letter</option>
+            </select>
+
+            <label>Tenancy start date</label>
+            <input type="date" id="l_start" />
+
+            <label>Tenancy end date (or "Present")</label>
+            <input type="text" id="l_end" placeholder="Present" />
+
+            <button type="button" class="primary" id="generateLetterBtn">Generate letter (PDF)</button>
+            <p class="hint">Opens a print-ready letter using the landlord details for that property — choose "Save as PDF" in the print dialog.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: REPORTS -->
+      <section id="tab-reportes" class="tabpanel" style="display:none;">
         <div class="card">
+          <div class="pill-select" id="reportTypeToggle">
+            <button data-report="expense" class="active">Expense report</button>
+            <button data-report="income">Income report</button>
+          </div>
+          <label>Year</label>
+          <select id="reporteAno"></select>
+          <div class="stat-grid" id="reporteStats" style="margin-top:16px;"></div>
+          <button class="secondary" id="exportExcelBtn" style="margin-top:16px;">Export report to Excel (.xlsx)</button>
+        </div>
+
+        <div class="card dark" id="categoryListCard">
+          <h2 id="reportBreakdownTitle">Total by category</h2>
+          <p class="hint" style="color:rgba(255,255,255,0.55);margin:-8px 0 12px;">Tap a row to see every entry.</p>
+          <div id="reporteCategorias"></div>
+        </div>
+
+        <div class="card" id="categoryDetailCard" style="display:none;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+            <button type="button" id="categoryDetailBack" class="secondary" style="width:auto;margin:0;padding:8px 14px;">&larr; Back</button>
+            <h2 id="categoryDetailTitle" style="margin:0;"></h2>
+          </div>
+          <div id="categoryDetailList"></div>
+        </div>
+
+        <div class="card" id="reportSecondaryCard">
+          <h2 id="reportSecondaryTitle">Real estate business by subcategory</h2>
+          <p class="hint" style="margin:-8px 0 12px;">Tap a subcategory to see every entry.</p>
+          <div id="reporteSubcategorias"></div>
+        </div>
+
+        <div class="card" id="subscriptionsCard">
           <h2>Subscriptions</h2>
           <p class="hint" style="margin:0 0 10px;">Add any recurring monthly charge once — personal (Netflix, Spotify), or business/property (Internet, software, insurance). Pick the matching category below, including a property if it's a fixed monthly bill for one of the houses. The app logs the charge automatically each month when you open it — no need to re-enter it.</p>
+          <div class="card" id="autoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
           <form id="subscriptionForm">
             <label>Name</label>
             <input type="text" id="s_nombre" placeholder="Ex: Netflix, Internet (13 Saint Brendan's)" required />
@@ -208,132 +341,6 @@
           <div id="subscriptionList" style="margin-top:10px;"><div class="spinner">Loading...</div></div>
         </div>
 
-        <div class="card">
-          <h2>Recorded expenses</h2>
-          <div class="filters">
-            <select id="filterAno">
-              <option value="">All years</option>
-            </select>
-            <select id="filterCategoria">
-              <option value="">All categories</option>
-            </select>
-          </div>
-          <div id="expenseList"><div class="spinner">Loading...</div></div>
-          <button class="secondary" id="exportCsvBtn">Export view to Excel</button>
-        </div>
-      </section>
-
-      <!-- TAB: PROPERTIES -->
-      <section id="tab-inmuebles" class="tabpanel" style="display:none;">
-        <div class="card" id="incomeAutoAddedBanner" style="display:none;background:#F5FBE0;border:1.5px solid var(--lime-dark);font-weight:700;font-size:13px;"></div>
-
-        <div class="card">
-          <h2>Recurring rent</h2>
-          <p class="hint" style="margin:0 0 10px;">When you log a "Monthly Rent" income for a tenant (in the New tab), it's saved here and the app logs that payment automatically every following month. Deposits are never repeated.</p>
-          <div id="incomeSubList"><div class="spinner">Loading...</div></div>
-        </div>
-
-        <div class="card">
-          <h2>Add / update tenant</h2>
-          <form id="tenantForm">
-            <label>Full name</label>
-            <input type="text" id="t_nombre" required />
-
-            <label>Email</label>
-            <input type="email" id="t_email" placeholder="name@example.com" />
-
-            <label>PPSN</label>
-            <input type="text" id="t_ppsn" placeholder="Ex: 1234567T" />
-
-            <label>Property</label>
-            <select id="t_inmueble" required></select>
-
-            <label>Registered with RTB</label>
-            <select id="t_rtb">
-              <option>No</option>
-              <option>Yes</option>
-            </select>
-
-            <label>Deposit (EUR)</label>
-            <input type="number" id="t_deposito" step="0.01" min="0" />
-
-            <label>Monthly rent (EUR)</label>
-            <input type="number" id="t_renta" step="0.01" min="0" />
-
-            <label>Paid through (month/year)</label>
-            <input type="text" id="t_pagado" placeholder="Ex: July 2026" />
-
-            <label>Currently living there?</label>
-            <select id="t_activo">
-              <option>Yes</option>
-              <option>No</option>
-            </select>
-
-            <label>Move-in date</label>
-            <input type="date" id="t_ingreso" />
-
-            <label>Passport photo</label>
-            <input type="file" id="t_pasaporte" accept="image/*,application/pdf" />
-
-            <label>Employment letter</label>
-            <input type="file" id="t_carta" accept="image/*,application/pdf" />
-
-            <label>Notes</label>
-            <textarea id="t_notas"></textarea>
-
-            <button type="submit" class="primary" id="saveTenantBtn">Save tenant</button>
-            <button type="button" class="secondary" id="cancelEditTenantBtn" style="display:none;">Cancel edit</button>
-            <div class="error-msg" id="tenantError"></div>
-          </form>
-        </div>
-        <div class="card">
-          <h2>Registered tenants</h2>
-          <div id="tenantList"><div class="spinner">Loading...</div></div>
-        </div>
-
-        <div class="card">
-          <h2>Generate tenant letter</h2>
-          <label>Tenant</label>
-          <select id="l_tenant"></select>
-
-          <label>Letter type</label>
-          <select id="l_type">
-            <option value="recommendation">Recommendation letter</option>
-            <option value="address">Proof of address letter</option>
-          </select>
-
-          <label>Tenancy start date</label>
-          <input type="date" id="l_start" />
-
-          <label>Tenancy end date (or "Present")</label>
-          <input type="text" id="l_end" placeholder="Present" />
-
-          <button type="button" class="primary" id="generateLetterBtn">Generate letter (PDF)</button>
-          <p class="hint">Opens a print-ready letter using the landlord details for that property — choose "Save as PDF" in the print dialog.</p>
-        </div>
-      </section>
-
-      <!-- TAB: REPORTS -->
-      <section id="tab-reportes" class="tabpanel" style="display:none;">
-        <div class="card">
-          <div class="pill-select" id="reportTypeToggle">
-            <button data-report="expense" class="active">Expense report</button>
-            <button data-report="income">Income report</button>
-          </div>
-          <label>Year</label>
-          <select id="reporteAno"></select>
-          <div class="stat-grid" id="reporteStats" style="margin-top:16px;"></div>
-          <button class="secondary" id="exportExcelBtn" style="margin-top:16px;">Export report to Excel (.xlsx)</button>
-        </div>
-        <div class="card dark">
-          <h2 id="reportBreakdownTitle">Total by category</h2>
-          <div id="reporteCategorias"></div>
-        </div>
-        <div class="card" id="reportSecondaryCard">
-          <h2 id="reportSecondaryTitle">Real estate business by subcategory</h2>
-          <div id="reporteSubcategorias"></div>
-        </div>
-
         <div class="card" id="incomeListCard" style="display:none;">
           <h2>Recorded income</h2>
           <div id="incomeList"></div>
@@ -350,19 +357,15 @@
     <nav class="tabbar">
       <div class="tabbar-indicator" id="tabbarIndicator"></div>
       <button data-tab="nuevo" class="active">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v8M8 12h8"></path></svg></span>
+        <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#14140F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v8M8 12h8"></path></svg></span>
         New
       </button>
-      <button data-tab="gastos">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"></rect><path d="M9 8h6M9 12h6M9 16h4"></path></svg></span>
-        Expenses
-      </button>
       <button data-tab="inmuebles">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V9l8-5 8 5v12"></path><path d="M9 21v-6h6v6"></path><path d="M9 12h.01M15 12h.01"></path></svg></span>
+        <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#86857C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M4 21V9l8-5 8 5v12"></path><path d="M9 21v-6h6v6"></path><path d="M9 12h.01M15 12h.01"></path></svg></span>
         Properties
       </button>
       <button data-tab="reportes">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M7 15v3M12 10v8M17 6v12"></path></svg></span>
+        <span class="icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#86857C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;"><path d="M3 3v18h18"></path><path d="M7 15v3M12 10v8M17 6v12"></path></svg></span>
         Reports
       </button>
     </nav>
